@@ -1,0 +1,262 @@
+---
+output: html_document
+---
+# Machine Learning with iris dataset.
+
+Author: Himansu Sahoo
+
+Date : September 11, 2015
+
+```{r}
+iris_data <- iris
+```
+Data set “iris” gives the measurements in centimeters of the variables : sepal length and width and petal length and width, respectively, for 50 flowers from each of 3 species of
+Iris. The dataset has 150 cases (rows) and 5 variables (columns) named Sepal.Length, Sepal.Width, Petal.Length, Petal.Width, Species.
+We intend to predict the Species based on the 4 flower characteristic variables.
+
+### Explore the iris dataset
+```{r}
+ls()
+class(iris_data) # class of the object, whether numeric, Factor
+dim(iris_data) # dimension of the dataset, rows x columns
+# rows = observations, columns = variables
+# 150 observations and 5 variables
+nrow(iris_data)
+ncol(iris_data)
+head(iris_data) # print first six lines
+tail(iris_data) # print last six lines
+str(iris_data) # structure of the object, basic information about variables
+names(iris_data) # names of the variables
+# predictor variable and target variable (Species)
+summary(iris_data) # five number summary of the dataset
+```
+
+### Explore the Target (dependent) variable
+
+```{r}
+class(iris_data$Species) # whether numeric or factor
+str(iris_data$Species) # full description
+levels(iris_data$Species) # levels of the factor variable
+table(iris_data$Species) # statistics of each level
+prop.table(table(iris_data$Species))
+```
+
+### Exploratory data analysis
+
+```{r fig.width=3.5, fig.height=3}
+#hist(iris_data$Sepal.Length, breaks=20, xlim=c(4,8))
+#hist(iris_data$Sepal.Width, breaks=15, xlim=c(1.5,4.5), col="red")
+#hist(iris_data$Petal.Length, breaks=20, xlim=c(1,7))
+hist(iris_data$Petal.Width, breaks=15, xlim=c(0,3), col="blue", xlab="Petal Width", ylab="# of entries", main="Histogram of Petal Width")
+barplot(table(iris_data$Species))
+```
+
+### Make box plot 
+
+```{r fig.width=3.5, fig.height=3}
+boxplot(iris_data$Sepal.Length, ylab="Sepal Length")
+#boxplot(iris_data$Sepal.Width, ylab="Sepal Width", main="Box plot of Sepal.Width")
+#boxplot(iris_data$Petal.Length, ylab="Petal.Length", main="Box plot of Petal.Length", col="red")
+#boxplot(iris_data$Petal.Width, ylab="Petal.Width", main="Box plot of Petal.Width", col="blue")
+```
+
+### Correlation Matrix
+```{r}
+#iris_data[1:3,1:4]
+cor(iris_data[,1:4])
+#cor(iris_data$Sepal.Length, iris_data$Petal.Length)
+pairs(iris_data[,1:4], col=iris_data$Species)
+```
+
+### Scatter Plot
+```{r}
+#plot(x=iris_data$Petal.Length, y=iris_data$Petal.Width, col=iris_data$Species)
+library(ggplot2)
+qplot(Petal.Length, Petal.Width, colour=Species, data=iris_data)
+```
+
+### Make Training and Testing dataset using caret package
+```{r}
+library(caret)
+set.seed(110)
+inTrain <- createDataPartition(y=iris_data$Species, p=0.75, list=FALSE)
+# inTrain is a matrix
+class(inTrain)
+dim(inTrain)
+train_data <- iris_data[inTrain,]
+test_data <- iris_data[-inTrain,]
+```
+
+### Explore the Training and Testing dataset
+```{r}
+dim(train_data)
+cat("train : dimension :  ", dim(train_data) , "\n")
+table(train_data$Species)
+prop.table(table(train_data$Species))
+
+dim(test_data)
+cat("test : dimension :  ", dim(test_data) , "\n")
+table(test_data$Species)
+prop.table(table(test_data$Species))
+
+train_per <- (nrow(train_data)/nrow(iris_data))*100
+test_per <- (nrow(test_data)/nrow(iris_data))*100
+cat("******** training dataset is :  ", train_per, "% \n")
+cat("******** testing dataset is :  ", test_per, "% \n")
+```
+
+### Building a Decision Tree (CART) model
+```{r}
+library(rpart)
+dt_model <- train(Species~., method="rpart", data=train_data)
+# output is train.formula. So, summary(dt_model) and str(dt_model) will give strange outputs
+class(dt_model)
+dt_model
+names(dt_model)
+dt_model$method
+dt_model$modelType
+dt_model$results
+dt_model$call
+dt_model$metric
+dt_model$perfNames
+dt_model$coefnames
+dt_model$finalModel
+```
+
+```{r}
+library(rattle)
+fancyRpartPlot(dt_model$finalModel)
+#in the middle block example
+#upper info : vote towards versicolor
+#middle numbers : proportion of Species after all cuts
+#lower number : percentage of data left after all cuts
+prop.table(table(subset(train_data, !(Petal.Length<2.5) & Petal.Width<1.8)$Species))
+nrow(subset(train_data, !(Petal.Length<2.5) & Petal.Width<1.8))/nrow(train_data) * 100
+```
+
+### Apply DT model on training dataset
+```{r}
+dt_pred <- predict(dt_model)
+table(train_data$Species)
+table(dt_pred)
+table(dt_pred, train_data$Species)
+confusionMatrix(dt_pred, train_data$Species)
+
+train_dt_pred <- predict(dt_model, newdata=train_data)
+table(train_dt_pred, train_data$Species)
+confusionMatrix(train_dt_pred, train_data$Species)
+
+correct_train_dt_pred <- train_dt_pred == train_data$Species
+library(ggplot2)
+qplot(Petal.Length, Petal.Width, colour=correct_train_dt_pred, data=train_data, main="model on training data")
+```
+
+### Apply DT model on testing dataset
+
+```{r}
+test_dt_pred <- predict(dt_model, newdata=test_data)
+table(test_dt_pred, test_data$Species)
+confusionMatrix(test_dt_pred, test_data$Species)
+
+correct_test_dt_pred <- test_dt_pred == test_data$Species
+qplot(Petal.Length, Petal.Width, colour=correct_test_dt_pred, data=test_data, main="model on testing data")
+```
+
+
+### Build a Random Forest Model
+```{r}
+rf_model <- train(Species~., method="rf", data=train_data)
+class(rf_model) # output is train.formula
+# summary(rf_model) and str(rf_model) will give strange outputs
+rf_model
+names(rf_model)
+rf_model$method
+rf_model$modelType
+rf_model$results
+rf_model$call
+rf_model$metric
+rf_model$perfNames
+rf_model$coefnames
+rf_model$finalModel
+```
+
+### Apply RF model on training dataset
+```{r}
+rf_pred <- predict(rf_model)
+table(train_data$Species)
+table(rf_pred)
+
+table(rf_pred, train_data$Species)
+confusionMatrix(rf_pred, train_data$Species)
+
+train_rf_pred <- predict(rf_model, newdata=train_data)
+class(train_rf_pred) # output is a factor variable, so can apply table() command
+table(train_data$Species)
+table(train_rf_pred)
+
+table(train_rf_pred, train_data$Species)
+confusionMatrix(train_rf_pred, train_data$Species)
+
+correct_train_rf_pred <- train_rf_pred == train_data$Species
+library(ggplot2)
+qplot(Petal.Length, Petal.Width, colour=correct_train_rf_pred, data=train_data, main="Random Forest model on training data")
+```
+
+### Apply RF model on testing dataset
+```{r}
+test_rf_pred <- predict(rf_model, newdata=test_data)
+table(test_data$Species)
+table(test_rf_pred)
+table(test_rf_pred, test_data$Species)
+confusionMatrix(test_rf_pred, test_data$Species)
+
+correct_test_rf_pred <- test_rf_pred == test_data$Species
+library(ggplot2)
+qplot(Petal.Length, Petal.Width, colour=correct_test_rf_pred, data=test_data, main="Random Forest model on testing data")
+```
+
+### Build a second Random Forest Model
+```{r}
+library(randomForest)
+rf2_model <- randomForest(Species~., data=train_data, ntree=100, proximity=TRUE)
+class(rf2_model) # output is randomForest.formula
+# summary() or str() will give strange messages
+rf2_model
+names(rf2_model)
+rf2_model$confusion
+table(train_data$Species)
+table(predict(rf2_model))
+table(predict(rf2_model), train_data$Species)
+```
+
+### Apply Second RF model on training dataset
+```{r}
+train_rf2_pred <- predict(rf2_model, newdata=train_data)
+class(train_rf2_pred) # output is factor variable, so can apply table() command
+table(train_data$Species)
+table(train_rf2_pred)
+
+table(train_rf2_pred, train_data$Species)
+confusionMatrix(train_rf2_pred, train_data$Species)
+
+correct_train_rf2_pred <- train_rf2_pred == train_data$Species
+library(ggplot2)
+qplot(Petal.Length, Petal.Width, colour=correct_train_rf2_pred, data=train_data, main="Random Forest model on training data")
+```
+
+### Apply Second RF model on testing dataset
+```{r}
+test_rf2_pred <- predict(rf2_model, newdata=test_data)
+table(test_data$Species)
+table(test_rf2_pred)
+table(test_rf2_pred, test_data$Species)
+confusionMatrix(test_rf2_pred, test_data$Species)
+
+correct_test_rf2_pred <- test_rf2_pred == test_data$Species
+library(ggplot2)
+qplot(Petal.Length, Petal.Width, colour=correct_test_rf2_pred, data=test_data, main="Random Forest model on testing data")
+```
+
+
+
+  
